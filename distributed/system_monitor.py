@@ -8,6 +8,7 @@ from .metrics import time
 class SystemMonitor:
     def __init__(self, n=10000):
         self.proc = psutil.Process()
+        self.proc_children = self.proc.children(recursive=True)
 
         self.time = deque(maxlen=n)
         self.cpu = deque(maxlen=n)
@@ -45,6 +46,15 @@ class SystemMonitor:
         with self.proc.oneshot():
             cpu = self.proc.cpu_percent()
             memory = self.proc.memory_info().rss
+        
+        updated_children = self.proc.children(recursive=True)
+        self.proc_children = [child for child in self.proc_children if child in updated_children]
+        self.proc_children += [child for child in updated_children if child not in self.proc_children]
+        for child in self.proc_children:
+            with child.oneshot():
+                cpu += child.cpu_percent()
+                memory += child.memory_info().rss
+        
         now = time()
 
         self.cpu.append(cpu)
